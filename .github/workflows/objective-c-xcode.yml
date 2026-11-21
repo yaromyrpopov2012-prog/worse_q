@@ -8,45 +8,24 @@ on:
 
 jobs:
   build:
-    runs-on: macos-26
+    runs-on: xcode-27
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Find compatible Xcode
+      - name: Check Xcode
         run: |
-          echo "Available Xcode installations:"
-          ls -d /Applications/Xcode*.app
-
-          SELECTED=""
-
-          for XCODE in $(ls -d /Applications/Xcode*.app | sort -V -r); do
-            VERSION=$(/usr/libexec/PlistBuddy \
-              -c "Print CFBundleShortVersionString" \
-              "$XCODE/Contents/Info.plist")
-
-            OBJECT_VERSION=$(grep -m1 'objectVersion' worse_query.xcodeproj/project.pbxproj \
-              | sed 's/[^0-9]//g')
-
-            echo "Checking $XCODE (version $VERSION)"
-
-            if [ "$VERSION" = "26.6" ]; then
-              continue
-            fi
-
-            SELECTED="$XCODE"
-            break
-          done
-
-          if [ -z "$SELECTED" ]; then
-            echo "No alternative Xcode installation found."
-            exit 1
-          fi
-
-          echo "Selected: $SELECTED"
-          sudo xcode-select -s "$SELECTED/Contents/Developer"
           xcodebuild -version
+          xcodebuild -showsdks
+
+      - name: Check Project
+        run: |
+          grep -E 'objectVersion|LastUpgradeCheck' \
+            worse_query.xcodeproj/project.pbxproj
+
+          xcodebuild -list \
+            -project worse_query.xcodeproj
 
       - name: Build iOS App
         run: |
@@ -58,22 +37,23 @@ jobs:
             -destination 'generic/platform=iOS' \
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
             build
 
       - name: Package IPA
         run: |
           APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/worse_query.app"
 
-          if [ ! -d "$APP_PATH" ]; then
-            echo "Build output not found!"
-            exit 1
-          fi
+          test -d "$APP_PATH"
 
           mkdir -p build/Payload
           cp -R "$APP_PATH" build/Payload/
 
           cd build
           zip -qry worse_query-unsigned.ipa Payload
+
+          test -f worse_query-unsigned.ipa
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
