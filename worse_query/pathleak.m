@@ -36,6 +36,7 @@
 NSArray<NSString *> *pathleak(NSString *path, uint64_t max_inode) {
     // Sanity checks
     if (path.length == 0 || max_inode < 1) return nil;
+    if (max_inode > 2000000) max_inode = 2000000;
     NSString *dir = path;
     while (dir.length > 1 && [dir hasSuffix: @"/"]) { // Trim trailing slash (if present)
         dir = [dir substringToIndex: dir.length - 1];
